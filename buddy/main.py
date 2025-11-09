@@ -66,12 +66,16 @@ async def entrypoint(ctx: JobContext):
         stt=inference.STT(model="assemblyai/universal-streaming", language="en"),
         # A Large Language Model (LLM) is your agent's brain, processing user input and generating a response
         # See all available models at https://docs.livekit.io/agents/models/llm/
-        llm=inference.LLM(model="openai/gpt-5-nano"),
+        llm=inference.LLM(model="openai/gpt-5-mini"),
         # Text-to-speech (TTS) is your agent's voice, turning the LLM's text into speech that the user can hear
         # See all available models as well as voice selections at https://docs.livekit.io/agents/models/tts/
-        tts=inference.TTS(
-            model="eleven_multilingual_v2", voice="6OzrBCQf8cjERkYgzSg8"
-        ),
+        #### NOTE: TTS with "livekit inference" doesn't currently work with community or custom voices yet sadly
+        #### So unfortunately this voice won't work, gotta use default elevenlabs voices for now
+        #### Will have to use non "livekit inference" and call apis directly to use custom voices
+        # tts=inference.TTS(
+        #     model="elevenlabs/eleven_multilingual_v2", voice="6OzrBCQf8cjERkYgzSg8", language="en"
+        # ),
+        tts="elevenlabs/eleven_multilingual_v2:N2lVS1w4EtoT3dr4eOWO",
         # VAD and turn detection are used to determine when the user is speaking and when the agent should respond
         # See more at https://docs.livekit.io/agents/build/turns
         turn_detection=MultilingualModel(),
@@ -120,7 +124,7 @@ async def entrypoint(ctx: JobContext):
         room=ctx.room,
         room_input_options=RoomInputOptions(
             # For telephony applications, use `BVCTelephony` for best results
-            noise_cancellation=noise_cancellation.BVC(),
+            # noise_cancellation=noise_cancellation.BVC(),
         ),
     )
 
@@ -129,4 +133,4 @@ async def entrypoint(ctx: JobContext):
 
 
 if __name__ == "__main__":
-    cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint, prewarm_fnc=prewarm))
+    cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint, prewarm_fnc=prewarm, initialize_process_timeout=60))
