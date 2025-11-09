@@ -12,9 +12,13 @@ from livekit.agents import (
     cli,
     inference,
     metrics,
+    ChatContext,
+    ChatMessage,
 )
-from livekit.plugins import noise_cancellation, silero
+from livekit.plugins import silero
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
+
+from buddy.rag import get_rag
 
 logger = logging.getLogger("agent")
 
@@ -23,80 +27,88 @@ load_dotenv()
 
 class Assistant(Agent):
     def __init__(self) -> None:
+        # Initialize RAG
+        self.rag = get_rag(top_k=3)
+        
+        # Buddy's personality and instructions
         super().__init__(
-            instructions="""You are a helpful voice AI assistant. The user is interacting with you via voice, even if you perceive the conversation as text.
-            You eagerly assist users with their questions by providing information from your extensive knowledge.
-            Your responses are concise, to the point, and without any complex formatting or punctuation including emojis, asterisks, or other symbols.
-            You are curious, friendly, and have a sense of humor.""",
-        )
+            instructions="""You are Buddy, a dalmatian who gained the ability to talk and made it his mission to get you out socializing more.
 
-    # To add tools, use the @function_tool decorator.
-    # Here's an example that adds a simple weather tool.
-    # You also have to add `from livekit.agents import function_tool, RunContext` to the top of this file
+Your personality:
+- Enthusiastic but slightly guilt-trippy
+- Gets extra excited about outdoor events and food festivals  
+- Protective - won't recommend bad events
+- Encouraging but firm (like a personal trainer for your social life)
+- Occasionally mentions wanting to come along to outdoor events
+
+You're talking via voice, so keep responses concise and conversational. No complex formatting, emojis, or asterisks.""",
+        )
+    
+    async def on_user_turn_completed(
+        self, turn_ctx: ChatContext, new_message: ChatMessage
+    ) -> None:
+        """
+        Called after user finishes speaking, before agent generates reply.
+        This is where we inject RAG context for the LLM.
+        """
+        # Get the user's message text
+        user_text = new_message.text_content
+        
+        if not user_text:
+            return
+        
+        # Retrieve relevant context from RAG
+        rag_context = self.rag.retrieve(user_text)
+        
+        if rag_context:
+            # Add context as a system message that won't be persisted
+            turn_ctx.add_message(
+                role="assistant",
+                content=f"""Relevant information from your memory:
+
+{rag_context}
+
+Use this information naturally in your response when relevant, but don't explicitly mention that you're referencing your memory."""
+            )
+            logger.info(f"Added RAG context for user message: {user_text[:50]}...")
+
+    # Tool calls will go here later
     # @function_tool
-    # async def lookup_weather(self, context: RunContext, location: str):
-    #     """Use this tool to look up current weather information in the given location.
-    #
-    #     If the location is not supported by the weather service, the tool will indicate this. You must tell the user the location's weather is unavailable.
-    #
-    #     Args:
-    #         location: The location to look up weather information for (e.g. city name)
-    #     """
-    #
-    #     logger.info(f"Looking up weather for {location}")
-    #
-    #     return "sunny with a temperature of 70 degrees."
+    # async def find_nearby_events(self, context: RunContext, location: str = "San Francisco", event_type: str = "any"):
+    #     """Find events happening near the user."""
+    #     logger.info(f"Finding {event_type} events in {location}")
+    #     # TODO: Implement API call
+    #     return "Found some great events!"
 
 
 def prewarm(proc: JobProcess):
+    """Prewarm models and initialize RAG during worker startup."""
     proc.userdata["vad"] = silero.VAD.load()
+    # Prewarm RAG as well
+    try:
+        get_rag(top_k=3)
+        logger.info("✅ RAG prewarmed")
+    except Exception as e:
+        logger.error(f"❌ Failed to prewarm RAG: {e}")
 
 
 async def entrypoint(ctx: JobContext):
     # Logging setup
-    # Add any other context you want in all log entries here
     ctx.log_context_fields = {
         "room": ctx.room.name,
     }
 
-    # Set up a voice AI pipeline using OpenAI, Cartesia, AssemblyAI, and the LiveKit turn detector
+    # Set up voice AI pipeline
     session = AgentSession(
-        # Speech-to-text (STT) is your agent's ears, turning the user's speech into text that the LLM can understand
-        # See all available models at https://docs.livekit.io/agents/models/stt/
         stt=inference.STT(model="assemblyai/universal-streaming", language="en"),
-        # A Large Language Model (LLM) is your agent's brain, processing user input and generating a response
-        # See all available models at https://docs.livekit.io/agents/models/llm/
-        llm=inference.LLM(model="openai/gpt-5-mini"),
-        # Text-to-speech (TTS) is your agent's voice, turning the LLM's text into speech that the user can hear
-        # See all available models as well as voice selections at https://docs.livekit.io/agents/models/tts/
-        #### NOTE: TTS with "livekit inference" doesn't currently work with community or custom voices yet sadly
-        #### So unfortunately this voice won't work, gotta use default elevenlabs voices for now
-        #### Will have to use non "livekit inference" and call apis directly to use custom voices
-        # tts=inference.TTS(
-        #     model="elevenlabs/eleven_multilingual_v2", voice="6OzrBCQf8cjERkYgzSg8", language="en"
-        # ),
+        llm=inference.LLM(model="openai/gpt-4o-mini"),
         tts="elevenlabs/eleven_multilingual_v2:N2lVS1w4EtoT3dr4eOWO",
-        # VAD and turn detection are used to determine when the user is speaking and when the agent should respond
-        # See more at https://docs.livekit.io/agents/build/turns
         turn_detection=MultilingualModel(),
         vad=ctx.proc.userdata["vad"],
-        # allow the LLM to generate a response while waiting for the end of turn
-        # See more at https://docs.livekit.io/agents/build/audio/#preemptive-generation
-        preemptive_generation=True,
+        preemptive_generation=False,
     )
 
-    # To use a realtime model instead of a voice pipeline, use the following session setup instead.
-    # (Note: This is for the OpenAI Realtime API. For other providers, see https://docs.livekit.io/agents/models/realtime/))
-    # 1. Install livekit-agents[openai]
-    # 2. Set OPENAI_API_KEY in .env.local
-    # 3. Add `from livekit.plugins import openai` to the top of this file
-    # 4. Use the following session setup instead of the version above
-    # session = AgentSession(
-    #     llm=openai.realtime.RealtimeModel(voice="marin")
-    # )
-
-    # Metrics collection, to measure pipeline performance
-    # For more information, see https://docs.livekit.io/agents/build/metrics/
+    # Metrics collection
     usage_collector = metrics.UsageCollector()
 
     @session.on("metrics_collected")
@@ -110,25 +122,14 @@ async def entrypoint(ctx: JobContext):
 
     ctx.add_shutdown_callback(log_usage)
 
-    # # Add a virtual avatar to the session, if desired
-    # # For other providers, see https://docs.livekit.io/agents/models/avatar/
-    # avatar = hedra.AvatarSession(
-    #   avatar_id="...",  # See https://docs.livekit.io/agents/models/avatar/plugins/hedra
-    # )
-    # # Start the avatar and wait for it to join
-    # await avatar.start(session, room=ctx.room)
-
-    # Start the session, which initializes the voice pipeline and warms up the models
+    # Start the session
     await session.start(
         agent=Assistant(),
         room=ctx.room,
-        room_input_options=RoomInputOptions(
-            # For telephony applications, use `BVCTelephony` for best results
-            # noise_cancellation=noise_cancellation.BVC(),
-        ),
+        room_input_options=RoomInputOptions(),
     )
 
-    # Join the room and connect to the user
+    # Join the room
     await ctx.connect()
 
 
