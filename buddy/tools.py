@@ -20,6 +20,9 @@ async def find_nearby_events(
 ) -> str:
     """Search for local events in San Francisco based on user's request.
     
+    IMPORTANT: This tool returns multiple diverse results from a single search.
+    DO NOT call this tool multiple times - one search is sufficient.
+    
     Use this when the user asks about events, what's happening, concerts, festivals, 
     things to do tonight/this week, etc.
     
@@ -32,9 +35,9 @@ async def find_nearby_events(
     # Provide feedback for longer searches
     async def _speak_status():
         await asyncio.sleep(0.5)
-        await context.session.generate_reply(
-            instructions="You're searching for events but it's taking a moment. "
-                        "Tell the user you're sniffing around for the best options - be playful and brief."
+        await context.session.say(
+            "Hang on, let me sniff around for the best options!",
+            add_to_chat_ctx=False
         )
     
     status_task = asyncio.create_task(_speak_status())

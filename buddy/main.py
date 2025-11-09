@@ -69,15 +69,6 @@ Use this information naturally in your response when relevant, but don't explici
             )
             logger.info(f"Added RAG context for user message: {user_text[:50]}...")
 
-    # Tool calls will go here later
-    # @function_tool
-    # async def find_nearby_events(self, context: RunContext, location: str = "San Francisco", event_type: str = "any"):
-    #     """Find events happening near the user."""
-    #     logger.info(f"Finding {event_type} events in {location}")
-    #     # TODO: Implement API call
-    #     return "Found some great events!"
-
-
 def prewarm(proc: JobProcess):
     """Prewarm models and initialize RAG during worker startup."""
     proc.userdata["vad"] = silero.VAD.load()
