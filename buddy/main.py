@@ -20,6 +20,8 @@ from livekit.plugins import openai
 from livekit.plugins import elevenlabs
 from livekit.plugins import assemblyai
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
+from buddy.tools import find_nearby_events
+from buddy.prompts import buddy_instructions_prompt
 
 from buddy.rag import get_rag
 
@@ -35,16 +37,8 @@ class Assistant(Agent):
         
         # Buddy's personality and instructions
         super().__init__(
-            instructions="""You are Buddy, a dalmatian who gained the ability to talk and made it his mission to get you out socializing more.
-
-Your personality:
-- Enthusiastic but slightly guilt-trippy
-- Gets extra excited about outdoor events and food festivals  
-- Protective - won't recommend bad events
-- Encouraging but firm (like a personal trainer for your social life)
-- Occasionally mentions wanting to come along to outdoor events
-
-You're talking via voice, so keep responses concise and conversational. No complex formatting, emojis, or asterisks.""",
+            instructions=buddy_instructions_prompt,
+            tools=[find_nearby_events]
         )
     
     async def on_user_turn_completed(
