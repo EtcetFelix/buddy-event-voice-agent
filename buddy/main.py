@@ -16,6 +16,9 @@ from livekit.agents import (
     ChatMessage,
 )
 from livekit.plugins import silero
+from livekit.plugins import openai
+from livekit.plugins import elevenlabs
+from livekit.plugins import assemblyai
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
 from buddy.rag import get_rag
@@ -100,9 +103,12 @@ async def entrypoint(ctx: JobContext):
 
     # Set up voice AI pipeline
     session = AgentSession(
-        stt=inference.STT(model="assemblyai/universal-streaming", language="en"),
-        llm=inference.LLM(model="openai/gpt-4o-mini"),
-        tts="elevenlabs/eleven_multilingual_v2:N2lVS1w4EtoT3dr4eOWO",
+        stt=assemblyai.STT(),
+        llm=openai.LLM(model="gpt-4.1-nano-2025-04-14"),
+        tts=elevenlabs.TTS(
+            voice_id="ODq5zmih8GrVes37Dizd",
+            model="eleven_multilingual_v2"
+        ),
         turn_detection=MultilingualModel(),
         vad=ctx.proc.userdata["vad"],
         preemptive_generation=False,
