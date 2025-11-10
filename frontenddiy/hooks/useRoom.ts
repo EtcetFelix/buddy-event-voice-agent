@@ -101,6 +101,9 @@ export function useRoom(appConfig: AppConfig) {
   }, [room, appConfig, tokenSource]);
 
   const endSession = useCallback(() => {
+    if (room.state !== 'disconnected') {
+      room.disconnect(); 
+    }
     setIsSessionActive(false);
   }, []);
 
