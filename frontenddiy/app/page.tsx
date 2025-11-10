@@ -1,16 +1,37 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo } from 'react';
 import { useSession } from '@/components/app/session-provider';
+import { useChatMessages } from '@/hooks/useChatMessages';
+import { ReceivedChatMessage } from '@livekit/components-react';
+
+// Define the simple message structure expected by the component rendering logic
+type SimpleTranscriptMessage = { speaker: 'user' | 'buddy', text: string };
+
+// Define the initial welcome message structure
+const INITIAL_WELCOME_TRANSCRIPT: SimpleTranscriptMessage[] = [
+  { speaker: 'user', text: 'Hey Buddy, what events are happening in North Beach?' },
+  { speaker: 'buddy', text: "Hey! I'm doing great, especially when I get to hear about new adventures. Let me sniff around for events in North Beach for you!" },
+  { speaker: 'user', text: 'Thanks!' },
+];
 
 export default function Home() {
-  const [transcript, setTranscript] = useState<Array<{ speaker: 'user' | 'buddy', text: string }>>([
-    { speaker: 'user', text: 'Hey Buddy, what events are happening in North Beach?' },
-    { speaker: 'buddy', text: "Hey! I'm doing great, especially when I get to hear about new adventures. Let me sniff around for events in North Beach for you!" },
-    { speaker: 'user', text: 'Thanks!' },
-  ]);
   const { appConfig, isSessionActive, startSession, endSession } = useSession();
   const isConnected = isSessionActive;
+
+  const liveMessages = useChatMessages();
+
+  const transcript: SimpleTranscriptMessage[] = useMemo(() => {
+    // Show initial welcome message if no connection is active and no live messages exist.
+    if (!isConnected && liveMessages.length === 0) {
+      return INITIAL_WELCOME_TRANSCRIPT;
+    }
+
+    return liveMessages.map((msg: ReceivedChatMessage) => ({
+      text: msg.message,
+      speaker: msg.from?.isLocal ? 'user' : 'buddy',
+    }));
+  }, [liveMessages, isConnected]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-orange-50">
@@ -63,7 +84,7 @@ export default function Home() {
 
           {/* Transcript Content */}
           <div className="h-96 overflow-y-auto p-6 space-y-4">
-            {!isConnected && transcript.length === 0 ? (
+            {!isConnected && liveMessages.length === 0 ? (
               <div className="text-center text-gray-400 py-16">
                 <p className="text-lg">Start a call to see the conversation transcript here</p>
               </div>
