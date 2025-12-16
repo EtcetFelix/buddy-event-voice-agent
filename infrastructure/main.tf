@@ -10,9 +10,6 @@ data "aws_vpc" "default" {
   default = true
 }
 
-data "aws_subnet_ids" "all" {
-  vpc_id = data.aws_vpc.default.id
-}
 resource "aws_ecr_repository" "hello-world" {
   name                 = "hello-world"
   force_delete  = true
@@ -102,7 +99,7 @@ data "aws_ami" "amazon_linux_2_arm" {
 
   filter {
     name   = "name"
-    values = ["amzn2-ami-hvm-*-arm64-gp3"]
+    values = ["amzn2-ami-hvm-*-arm64-gp2"]
   }
 }
 
@@ -115,8 +112,8 @@ resource "aws_instance" "web" {
   }
 
   vpc_security_group_ids = [
-    module.ec2_sg.this_security_group_id,
-    module.dev_ssh_sg.this_security_group_id
+    module.ec2_sg.security_group_id,
+    module.dev_ssh_sg.security_group_id
   ]
   iam_instance_profile = aws_iam_instance_profile.ec2_profile_hello_world.name
 
