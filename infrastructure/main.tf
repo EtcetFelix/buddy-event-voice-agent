@@ -80,7 +80,7 @@ module "dev_ssh_sg" {
   description = "SSH-only SG for EC2"
   vpc_id      = data.aws_vpc.default.id
 
-  ingress_cidr_blocks = ["73.92.210.219/32"]
+  ingress_cidr_blocks = [var.allowed_ssh_cidr]
   ingress_rules       = ["ssh-tcp"]
 }
 
