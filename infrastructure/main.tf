@@ -3,25 +3,25 @@ provider "aws" {
 }
 
 terraform {
-    required_version = ">=1.13.5"
+  required_version = ">=1.13.5"
 }
 
 data "aws_vpc" "default" {
   default = true
 }
 
-resource "aws_ecr_repository" "hello-world" {
-  name                 = "hello-world"
-  force_delete  = true
+resource "aws_ecr_repository" "buddy_agent" {
+  name                 = "buddy-agent"
+  force_delete         = true
   image_tag_mutability = "MUTABLE"
 
   tags = {
-    project = "hello-world"
+    project = "buddy-voice-agent"
   }
 }
 
-resource "aws_iam_role" "ec2_role_hello_world" {
-  name = "ec2_role_hello_world"
+resource "aws_iam_role" "ec2_role_buddy_agent" {
+  name = "ec2_role_buddy_agent"
 
   assume_role_policy = <<EOF
 {
@@ -39,18 +39,18 @@ resource "aws_iam_role" "ec2_role_hello_world" {
 EOF
 
   tags = {
-    project = "hello-world"
+    project = "buddy-voice-agent"
   }
 }
 
-resource "aws_iam_instance_profile" "ec2_profile_hello_world" {
-  name = "ec2_profile_hello_world"
-  role = aws_iam_role.ec2_role_hello_world.name
+resource "aws_iam_instance_profile" "ec2_profile_buddy_agent" {
+  name = "ec2_profile_buddy_agent"
+  role = aws_iam_role.ec2_role_buddy_agent.name
 }
 
 resource "aws_iam_role_policy" "ec2_policy" {
   name = "ec2_policy"
-  role = aws_iam_role.ec2_role_hello_world.id
+  role = aws_iam_role.ec2_role_buddy_agent.id
 
   policy = <<EOF
 {
@@ -91,7 +91,7 @@ module "ec2_sg" {
   ingress_cidr_blocks = ["0.0.0.0/0"]
   ingress_rules       = ["http-80-tcp", "https-443-tcp", "all-icmp"]
   egress_rules        = ["all-all"]
-  
+
   # LiveKit ports
   ingress_with_cidr_blocks = [
     {
@@ -129,27 +129,47 @@ data "aws_ami" "amazon_linux_2_arm" {
 }
 
 resource "aws_instance" "web" {
-  # ... instance config ...
-  
+  ami           = data.aws_ami.amazon_linux_2_arm.id
+  instance_type = "c6g.medium"
+
+  root_block_device {
+    volume_size = 8
+  }
+
+  vpc_security_group_ids = [
+    module.ec2_sg.security_group_id,
+    module.dev_ssh_sg.security_group_id
+  ]
+  iam_instance_profile = aws_iam_instance_profile.ec2_profile_buddy_agent.name
+
+  tags = {
+    project = "buddy-voice-agent"
+  }
+
+  key_name                = "hello-world-key"
+  monitoring              = true
+  disable_api_termination = false
+  ebs_optimized           = true
+
   user_data = <<-EOF
     #!/bin/bash
     set -e
-    
+
     # Install Docker + Docker Compose
     yum update -y
     yum install -y docker git
     service docker start
     usermod -a -G docker ec2-user
-    
+
     curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
     chmod +x /usr/local/bin/docker-compose
-    
+
     # Create app directory
     mkdir -p /home/ec2-user/app
     chown -R ec2-user:ec2-user /home/ec2-user/app
-    
-    # ECR login helper (optional - could be in deploy script instead)
-    echo 'aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin ${aws_ecr_repository.agent.repository_url}' > /home/ec2-user/ecr-login.sh
+
+    # ECR login helper
+    echo 'aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin ${aws_ecr_repository.buddy_agent.repository_url}' > /home/ec2-user/ecr-login.sh
     chmod +x /home/ec2-user/ecr-login.sh
   EOF
 }
@@ -157,6 +177,11 @@ resource "aws_instance" "web" {
 output "ec2_public_ip" {
   value       = aws_instance.web.public_ip
   description = "Public IP of the EC2 instance"
+}
+
+output "ecr_repository_url" {
+  value       = aws_ecr_repository.buddy_agent.repository_url
+  description = "ECR repository URL for the buddy agent image"
 }
 
 output "livekit_url" {
