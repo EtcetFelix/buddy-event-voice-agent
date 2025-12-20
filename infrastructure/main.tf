@@ -129,103 +129,28 @@ data "aws_ami" "amazon_linux_2_arm" {
 }
 
 resource "aws_instance" "web" {
-  ami           = data.aws_ami.amazon_linux_2_arm.id
-  instance_type = "c6g.medium"
-
-  root_block_device {
-    volume_size = 8
-  }
-
-  vpc_security_group_ids = [
-    module.ec2_sg.security_group_id,
-    module.dev_ssh_sg.security_group_id
-  ]
-  iam_instance_profile = aws_iam_instance_profile.ec2_profile_hello_world.name
-
-  tags = {
-    project = "hello-world"
-  }
-
-  key_name                = "hello-world-key"
-  monitoring              = true
-  disable_api_termination = false
-  ebs_optimized           = true
-
+  # ... instance config ...
+  
   user_data = <<-EOF
     #!/bin/bash
     set -e
     
-    # Install Docker
+    # Install Docker + Docker Compose
     yum update -y
     yum install -y docker git
     service docker start
     usermod -a -G docker ec2-user
     
-    # Install Docker Compose
     curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
     chmod +x /usr/local/bin/docker-compose
     
-    # Get instance public IP
-    INSTANCE_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)
+    # Create app directory
+    mkdir -p /home/ec2-user/app
+    chown -R ec2-user:ec2-user /home/ec2-user/app
     
-    # Create project directory
-    mkdir -p /home/ec2-user/buddy-event-voice-agent
-    cd /home/ec2-user/buddy-event-voice-agent
-    
-    # Create .env file with dynamic IP
-    cat > .env <<EOL
-LIVEKIT_URL=ws://$INSTANCE_IP:7880
-LIVEKIT_API_KEY=${var.livekit_api_key}
-LIVEKIT_API_SECRET=${var.livekit_api_secret}
-OPENAI_API_KEY=${var.openai_api_key}
-ELEVENLABS_API_KEY=${var.elevenlabs_api_key}
-ASSEMBLYAI_API_KEY=${var.assemblyai_api_key}
-EOL
-    
-    # Create livekit.yaml
-    cat > livekit.yaml <<EOL
-port: 7880
-rtc:
-  port_range_start: 50000
-  port_range_end: 60000
-  use_external_ip: true
-keys:
-  ${var.livekit_api_key}: ${var.livekit_api_secret}
-EOL
-    
-    # Login to ECR
-    aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin ${aws_ecr_repository.hello-world.repository_url}
-    
-    # Pull agent image
-    docker pull ${aws_ecr_repository.hello-world.repository_url}:latest
-    
-    # Create docker-compose.yml
-    cat > docker-compose.yml <<EOL
-version: "3.9"
-services:
-  livekit:
-    image: livekit/livekit-server:latest
-    command: --config /etc/livekit.yaml
-    restart: unless-stopped
-    network_mode: "host"
-    volumes:
-      - ./livekit.yaml:/etc/livekit.yaml
-
-  buddy-agent:
-    image: ${aws_ecr_repository.hello-world.repository_url}:latest
-    restart: unless-stopped
-    network_mode: "host"
-    env_file:
-      - .env
-    depends_on:
-      - livekit
-EOL
-    
-    # Set permissions
-    chown -R ec2-user:ec2-user /home/ec2-user/buddy-event-voice-agent
-    
-    # Start services
-    docker-compose up -d
+    # ECR login helper (optional - could be in deploy script instead)
+    echo 'aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin ${aws_ecr_repository.agent.repository_url}' > /home/ec2-user/ecr-login.sh
+    chmod +x /home/ec2-user/ecr-login.sh
   EOF
 }
 
