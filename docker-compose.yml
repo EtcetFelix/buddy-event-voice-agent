@@ -3,26 +3,21 @@ services:
     image: livekit/livekit-server:latest
     command: --config /etc/livekit.yaml
     restart: unless-stopped
-    ports:
-      - "7880:7880"
-      - "7881:7881"
-      - "40000-40100:40000-40100/udp"
-      - "40000-40100:40000-40100/tcp"
+    network_mode: "host"
     volumes:
       - ./livekit.yaml:/etc/livekit.yaml
-    networks:
-      - livekit-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:7880"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   buddy-agent:
-    build: .
+    image: ${ECR_REPOSITORY_URL:-buddy-agent:latest}
     restart: unless-stopped
+    network_mode: "host"
     env_file:
-      - .env.local
+      - .env
     depends_on:
-      - livekit
-    networks:
-      - livekit-network
-
-networks:
-  livekit-network:
-    driver: bridge
+      livekit:
+        condition: service_healthy
