@@ -1,0 +1,23 @@
+services:
+  livekit:
+    image: livekit/livekit-server:latest
+    command: --config /etc/livekit.yaml
+    restart: unless-stopped
+    network_mode: "host"
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:7880"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  buddy-agent:
+    image: ${ECR_REPOSITORY_URL:-buddy-agent:latest}
+    restart: unless-stopped
+    network_mode: "host"
+    env_file:
+      - .env
+    depends_on:
+      livekit:
+        condition: service_healthy

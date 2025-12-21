@@ -33,51 +33,51 @@ load_dotenv()
 class Assistant(Agent):
     def __init__(self) -> None:
         # Initialize RAG
-        self.rag = get_rag(top_k=3)
+        # self.rag = get_rag(top_k=3)
         
         # Buddy's personality and instructions
         super().__init__(
             instructions=buddy_instructions_prompt,
-            tools=[find_nearby_events]
+            # tools=[find_nearby_events]
         )
     
-    async def on_user_turn_completed(
-        self, turn_ctx: ChatContext, new_message: ChatMessage
-    ) -> None:
-        """
-        Called after user finishes speaking, before agent generates reply.
-        This is where we inject RAG context for the LLM.
-        """
-        # Get the user's message text
-        user_text = new_message.text_content
+#     async def on_user_turn_completed(
+#         self, turn_ctx: ChatContext, new_message: ChatMessage
+#     ) -> None:
+#         """
+#         Called after user finishes speaking, before agent generates reply.
+#         This is where we inject RAG context for the LLM.
+#         """
+#         # Get the user's message text
+#         user_text = new_message.text_content
         
-        if not user_text:
-            return
+#         if not user_text:
+#             return
         
-        # Retrieve relevant context from RAG
-        rag_context = self.rag.retrieve(user_text)
+#         # Retrieve relevant context from RAG
+#         rag_context = self.rag.retrieve(user_text)
         
-        if rag_context:
-            # Add context as a system message that won't be persisted
-            turn_ctx.add_message(
-                role="assistant",
-                content=f"""Relevant information from your memory:
+#         if rag_context:
+#             # Add context as a system message that won't be persisted
+#             turn_ctx.add_message(
+#                 role="assistant",
+#                 content=f"""Relevant information from your memory:
 
-{rag_context}
+# {rag_context}
 
-Use this information naturally in your response when relevant, but don't explicitly mention that you're referencing your memory."""
-            )
-            logger.info(f"Added RAG context for user message: {user_text[:50]}...")
+# Use this information naturally in your response when relevant, but don't explicitly mention that you're referencing your memory."""
+#             )
+#             logger.info(f"Added RAG context for user message: {user_text[:50]}...")
 
 def prewarm(proc: JobProcess):
     """Prewarm models and initialize RAG during worker startup."""
     proc.userdata["vad"] = silero.VAD.load()
     # Prewarm RAG as well
-    try:
-        get_rag(top_k=3)
-        logger.info("✅ RAG prewarmed")
-    except Exception as e:
-        logger.error(f"❌ Failed to prewarm RAG: {e}")
+    # try:
+    #     get_rag(top_k=3)
+    #     logger.info("✅ RAG prewarmed")
+    # except Exception as e:
+    #     logger.error(f"❌ Failed to prewarm RAG: {e}")
 
 
 async def entrypoint(ctx: JobContext):

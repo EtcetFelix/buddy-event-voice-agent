@@ -1,0 +1,10 @@
+port: 7880
+rtc:
+  port_range_start: 50000
+  port_range_end: 60000
+  use_external_ip: true
+keys:
+  # Generate keys with: docker run --rm livekit/livekit-server generate-keys
+  # For local: Copy this file to livekit.yaml and replace with actual keys
+  # For production: Terraform will generate this file automatically
+  YOUR_API_KEY: YOUR_API_SECRET
