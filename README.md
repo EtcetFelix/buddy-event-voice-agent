@@ -359,36 +359,7 @@ buddy-event-voice-agent/
 └── README.md                     # This file
 ```
 
-## 🎯 Future Enhancements
-
-If I had more time, I'd add:
-
-1. **Memory Persistence**: Save conversation history to remember past conversations
-2. **Multi-user Support**: Deploy on LiveKit Cloud for multiple users
-3. **Advanced RAG**: Implement hybrid search (semantic + keyword) for better retrieval
-4. **Voice Customization**: Find a better voice model that sounds more dog-like
-5. **3d Avater**: Use a 3d puppet avatar for Buddy on the frontend
-
-## 📝 Development Notes
-
-### AI Tooling Used
-
-This project was developed with assistance from:
-- **Claude (Anthropic)**: Code architecture, debugging, documentation, writing Buddy's knowledge base.
-- **Windsurf**: Exploring and understanding how the livekit default frontend interacted with the server.
-
-All AI suggestions were reviewed, tested, and modified for production quality.
-
-## 🙏 Acknowledgments
-
-- **LiveKit**: Excellent real-time voice infrastructure and agent framework
-- **BlueJay Team**: For prompting me to build this creative and technically engaging challenge
-
 ## 📧 Contact
 
 Alan Bohannon  
 alanbohannon@gmail.com
-
----
-
-Built with 🐾 by a guy who really does need to get out more
