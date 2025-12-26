@@ -1,0 +1,93 @@
+name: Deploy Buddy Agent
+
+on:
+  push:
+    branches:
+      - main
+
+# Required for OIDC authentication to AWS
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-west-2
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Docker image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          ECR_REPOSITORY: buddy-agent
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          # Build the Docker image
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          
+          # Push both tags
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          
+          echo "✅ Pushed image: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          echo "✅ Pushed image: $ECR_REGISTRY/$ECR_REPOSITORY:latest"
+
+      - name: Deploy to DigitalOcean
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          ECR_REPOSITORY: buddy-agent
+        run: |
+          # Save SSH key to file
+          echo "${{ secrets.DROPLET_SSH_KEY }}" > deploy_key
+          chmod 600 deploy_key
+          
+          # SSH into droplet and deploy
+          ssh -i deploy_key -o StrictHostKeyChecking=no deploy@167.99.26.204 << 'ENDSSH'
+            set -e
+            
+            echo "🔄 Navigating to deployment directory..."
+            cd /opt/livekit
+            
+            echo "🔐 Logging into ECR..."
+            aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}
+            
+            echo "⬇️  Pulling latest image..."
+            docker compose pull buddy-agent
+            
+            echo "🔄 Restarting agent..."
+            docker compose up -d --no-deps --force-recreate buddy-agent
+            
+            echo "🧹 Cleaning up old images..."
+            docker image prune -f
+            
+            echo "✅ Deployment complete!"
+            
+            echo "📊 Container status:"
+            docker compose ps buddy-agent
+          ENDSSH
+          
+          # Clean up SSH key
+          rm -f deploy_key
+
+      - name: Deployment summary
+        if: success()
+        run: |
+          echo "### 🎉 Deployment Successful!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image**: \`${{ steps.ecr-login.outputs.registry }}/buddy-agent:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Deployed to**: \`167.99.26.204\`" >> $GITHUB_STEP_SUMMARY
