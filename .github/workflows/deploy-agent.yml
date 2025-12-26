@@ -1,4 +1,4 @@
-  name: Deploy Buddy Agent
+name: Deploy Buddy Agent
 
 on:
   push:
@@ -13,7 +13,7 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: production  # Uses your production environment secrets
+    environment: production
     
     steps:
       - name: Checkout code
@@ -43,8 +43,8 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
           
-          echo "Pushed image: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
-          echo "Pushed image: $ECR_REGISTRY/$ECR_REPOSITORY:latest"
+          echo "✅ Pushed image: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          echo "✅ Pushed image: $ECR_REGISTRY/$ECR_REPOSITORY:latest"
 
       - name: Deploy to DigitalOcean
         env:
@@ -59,23 +59,35 @@ jobs:
           ssh -i deploy_key -o StrictHostKeyChecking=no deploy@167.99.26.204 << 'ENDSSH'
             set -e
             
-            # Navigate to deployment directory
-            cd /root/app
+            echo "🔄 Navigating to deployment directory..."
+            cd /opt/livekit
             
-            # Login to ECR
+            echo "🔐 Logging into ECR..."
             aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}
             
-            # Pull latest image
+            echo "⬇️  Pulling latest image..."
             docker compose pull buddy-agent
             
-            # Restart the agent (no downtime handling yet)
+            echo "🔄 Restarting agent..."
             docker compose up -d --no-deps --force-recreate buddy-agent
             
-            # Clean up old images
+            echo "🧹 Cleaning up old images..."
             docker image prune -f
             
             echo "✅ Deployment complete!"
+            
+            echo "📊 Container status:"
+            docker compose ps buddy-agent
           ENDSSH
           
           # Clean up SSH key
           rm -f deploy_key
+
+      - name: Deployment summary
+        if: success()
+        run: |
+          echo "### 🎉 Deployment Successful!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image**: \`${{ steps.ecr-login.outputs.registry }}/buddy-agent:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Deployed to**: \`167.99.26.204\`" >> $GITHUB_STEP_SUMMARY
