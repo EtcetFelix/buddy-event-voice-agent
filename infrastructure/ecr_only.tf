@@ -40,7 +40,7 @@ resource "aws_iam_role" "github_actions_ecr" {
           }
           StringLike = {
             # Only allows GitHub Actions from this specific repo's main branch
-            "token.actions.githubusercontent.com:sub" = "repo:EtcetFelix/buddy-event-voice-agent:ref:refs/heads/main"
+            "token.actions.githubusercontent.com:sub" = "repo:EtcetFelix/buddy-event-voice-agent:environment:production"
           }
         }
       }
