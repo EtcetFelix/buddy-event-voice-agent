@@ -65,15 +65,21 @@ jobs:
           echo "${{ secrets.DROPLET_SSH_KEY }}" > deploy_key
           chmod 600 deploy_key
           
+          echo "🚀 Starting deployment..."
+          
           # SSH into droplet and deploy
-          ssh -i deploy_key -o StrictHostKeyChecking=no deploy@167.99.26.204 << 'ENDSSH'
+          # Pass ECR_REGISTRY as environment variable to the SSH session
+          ssh -i deploy_key -o StrictHostKeyChecking=no deploy@167.99.26.204 \
+            "ECR_REGISTRY='$ECR_REGISTRY'" \
+            bash << 'ENDSSH'
             set -e
             
             echo "🔄 Navigating to deployment directory..."
             cd /opt/livekit
             
             echo "🔐 Logging into ECR..."
-            aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}
+            echo "Using registry: $ECR_REGISTRY"
+            aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin $ECR_REGISTRY
             
             echo "⬇️  Pulling latest image..."
             docker compose pull buddy-agent
