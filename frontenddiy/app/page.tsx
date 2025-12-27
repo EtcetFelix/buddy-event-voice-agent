@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { useSession } from '@/components/app/session-provider';
 import { useChatMessages } from '@/hooks/useChatMessages';
 import { ReceivedChatMessage } from '@livekit/components-react';
+import TranscriptPanel from '@/components/app/transcript/TranscriptPanel';
 
 // Define the simple message structure expected by the component rendering logic
 type SimpleTranscriptMessage = { speaker: 'user' | 'buddy', text: string };
@@ -73,44 +74,11 @@ export default function Home() {
         </div>
 
         {/* Transcript Panel */}
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
-          {/* Transcript Header */}
-          <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4 text-white">
-            <h2 className="text-xl font-semibold flex items-center gap-2">
-              <span>💬</span>
-              Live Transcript
-            </h2>
-          </div>
-
-          {/* Transcript Content */}
-          <div className="h-96 overflow-y-auto p-6 space-y-4">
-            {!isConnected && liveMessages.length === 0 ? (
-              <div className="text-center text-gray-400 py-16">
-                <p className="text-lg">Start a call to see the conversation transcript here</p>
-              </div>
-            ) : (
-              transcript.map((message, index) => (
-                <div
-                  key={index}
-                  className={`flex ${message.speaker === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div
-                    className={`max-w-[75%] rounded-2xl px-4 py-3 ${
-                      message.speaker === 'user'
-                        ? 'bg-blue-600 text-white rounded-br-none'
-                        : 'bg-gray-100 text-gray-800 rounded-bl-none'
-                    }`}
-                  >
-                    <div className="text-xs font-semibold mb-1 opacity-70">
-                      {message.speaker === 'user' ? 'You' : 'Buddy'}
-                    </div>
-                    <p className="text-sm leading-relaxed">{message.text}</p>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
+        <TranscriptPanel 
+          transcript={transcript}
+          isConnected={isConnected}
+          hasLiveMessages={liveMessages.length > 0}
+        />
 
         {/* Connection Status */}
         <div className="mt-4 text-center">
