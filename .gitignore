@@ -217,3 +217,4 @@ terraform.tfvars
 *.tfstate.backup
 .terraform.lock.hcl
 livekit.yaml
+egress.yaml
