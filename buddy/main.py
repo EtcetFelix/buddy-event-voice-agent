@@ -36,40 +36,41 @@ class Assistant(Agent):
     def __init__(self) -> None:
         # Initialize RAG
         # self.rag = get_rag(top_k=3)
-        
+
         # Buddy's personality and instructions
         super().__init__(
             instructions=buddy_instructions_prompt,
             # tools=[find_nearby_events]
         )
-    
-#     async def on_user_turn_completed(
-#         self, turn_ctx: ChatContext, new_message: ChatMessage
-#     ) -> None:
-#         """
-#         Called after user finishes speaking, before agent generates reply.
-#         This is where we inject RAG context for the LLM.
-#         """
-#         # Get the user's message text
-#         user_text = new_message.text_content
-        
-#         if not user_text:
-#             return
-        
-#         # Retrieve relevant context from RAG
-#         rag_context = self.rag.retrieve(user_text)
-        
-#         if rag_context:
-#             # Add context as a system message that won't be persisted
-#             turn_ctx.add_message(
-#                 role="assistant",
-#                 content=f"""Relevant information from your memory:
 
-# {rag_context}
+    # async def on_user_turn_completed(
+    #     self, turn_ctx: ChatContext, new_message: ChatMessage
+    # ) -> None:
+    #     """
+    #     Called after user finishes speaking, before agent generates reply.
+    #     This is where we inject RAG context for the LLM.
+    #     """
+    #     # Get the user's message text
+    #     user_text = new_message.text_content
+    #
+    #     if not user_text:
+    #         return
+    #
+    #     # Retrieve relevant context from RAG
+    #     rag_context = self.rag.retrieve(user_text)
+    #
+    #     if rag_context:
+    #         # Add context as a system message that won't be persisted
+    #         turn_ctx.add_message(
+    #             role="assistant",
+    #             content=f"""Relevant information from your memory:
+    #
+    # {rag_context}
+    #
+    # Use this information naturally in your response when relevant, but don't explicitly mention that you're referencing your memory."""
+    #         )
+    #         logger.info(f"Added RAG context for user message: {user_text[:50]}...")
 
-# Use this information naturally in your response when relevant, but don't explicitly mention that you're referencing your memory."""
-#             )
-#             logger.info(f"Added RAG context for user message: {user_text[:50]}...")
 
 def prewarm(proc: JobProcess):
     """Prewarm models and initialize RAG during worker startup."""
@@ -87,6 +88,7 @@ async def entrypoint(ctx: JobContext):
     ctx.log_context_fields = {
         "room": ctx.room.name,
     }
+
     # Set up voice AI pipeline
     session = AgentSession(
         stt=assemblyai.STT(),
@@ -120,38 +122,41 @@ async def entrypoint(ctx: JobContext):
         room=ctx.room,
         room_input_options=RoomInputOptions(),
     )
-    # Auto-start recording
+
+    # Join the room first so the agent participant identity is available
+    await ctx.connect()
+
+    # Auto-start recording via ParticipantEgress (no Chrome required)
     lk_api = api.LiveKitAPI(
         url=os.environ["LIVEKIT_URL"],
         api_key=os.environ["LIVEKIT_API_KEY"],
         api_secret=os.environ["LIVEKIT_API_SECRET"],
     )
-
     try:
-        await lk_api.egress.start_track_composite_egress(
-            api.StartTrackCompositeEgressRequest(
+        egress_info = await lk_api.egress.start_participant_egress(
+            api.ParticipantEgressRequest(
                 room_name=ctx.room.name,
-                file=api.EncodedFileOutput(
-                    file_type=api.EncodedFileType.MP4,
-                    filepath=f"recordings/{ctx.room.name}-{{time}}.mp4",
-                    s3=api.S3Upload(
-                        bucket="buddyrecordings",
-                        region="auto",
-                        endpoint="https://d67b3e3015f972235f48db4fa9fb649d.r2.cloudflarestorage.com",
-                        access_key=os.environ["R2_ACCESS_KEY"],
-                        secret=os.environ["R2_SECRET_KEY"],
+                identity=ctx.room.local_participant.identity,
+                file_outputs=[
+                    api.EncodedFileOutput(
+                        file_type=api.EncodedFileType.MP4,
+                        filepath=f"recordings/{ctx.room.name}-{{time}}.mp4",
+                        s3=api.S3Upload(
+                            bucket=os.environ["R2_BUCKET"],
+                            region="auto",
+                            endpoint=os.environ["R2_ENDPOINT"],
+                            access_key=os.environ["R2_ACCESS_KEY"],
+                            secret=os.environ["R2_SECRET_KEY"],
+                        ),
                     )
-                )
+                ],
             )
         )
-        logger.info(f"Recording started for room {ctx.room.name}")
+        logger.info(f"Recording started for room {ctx.room.name}, egress_id={egress_info.egress_id}")
     except Exception as e:
         logger.error(f"Failed to start recording: {e}")
     finally:
         await lk_api.aclose()
-
-    # Join the room
-    await ctx.connect()
 
 
 if __name__ == "__main__":

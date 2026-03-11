@@ -1,12 +1,19 @@
 services:
   redis:
     image: redis:latest
-    network_mode: "host"
+    ports:
+      - "6379:6379"
+    networks:
+      - livekit-net
+
   livekit:
     image: livekit/livekit-server:latest
     command: --config /etc/livekit.yaml
     restart: unless-stopped
-    network_mode: "host"
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "50000-50100:50000-50100/udp"
     volumes:
       - ./livekit.yaml:/etc/livekit.yaml
     healthcheck:
@@ -14,13 +21,35 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+    depends_on:
+      - redis
+    networks:
+      - livekit-net
+
+  egress:
+    image: livekit/egress:latest
+    restart: unless-stopped
+    volumes:
+      - ./egress.yaml:/egress.yaml
+    environment:
+      - EGRESS_CONFIG_FILE=/egress.yaml
+    depends_on:
+      - redis
+      - livekit
+    networks:
+      - livekit-net
 
   buddy-agent:
     image: ${ECR_REPOSITORY_URL:-buddy-agent:latest}
     restart: unless-stopped
-    network_mode: "host"
     env_file:
       - .env
     depends_on:
       livekit:
         condition: service_healthy
+    networks:
+      - livekit-net
+
+networks:
+  livekit-net:
+    driver: bridge
